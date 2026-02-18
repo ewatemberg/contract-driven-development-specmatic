@@ -11,14 +11,15 @@ Capacitacion practica sobre como usar **Specmatic** para implementar **Contract 
 3. [Flujo de trabajo API First](#3-flujo-de-trabajo-api-first)
 4. [Estructura del proyecto](#4-estructura-del-proyecto)
 5. [Convencion de expectativas](#5-convencion-de-expectativas)
-6. [Prerequisitos](#6-prerequisitos)
+6. [Prerequisitos e instalacion](#6-prerequisitos-e-instalacion)
 7. [Demo 1 - Levantar el Stub (FE / QAA)](#7-demo-1---levantar-el-stub-fe--qaa)
 8. [Demo 2 - Expectativas externas (QAA)](#8-demo-2---expectativas-externas-qaa)
 9. [Demo 3 - Contract Testing (BE)](#9-demo-3---contract-testing-be)
 10. [Demo 4 - Repositorio central de contratos](#10-demo-4---repositorio-central-de-contratos)
 11. [Demo 5 - Que pasa cuando alguien rompe el contrato](#11-demo-5---que-pasa-cuando-alguien-rompe-el-contrato)
-12. [Comparacion con otras herramientas](#12-comparacion-con-otras-herramientas)
-13. [Resumen de beneficios](#13-resumen-de-beneficios)
+12. [Integracion con Maven (BE)](#12-integracion-con-maven-be)
+13. [Comparacion con otras herramientas](#13-comparacion-con-otras-herramientas)
+14. [Resumen de beneficios](#14-resumen-de-beneficios)
 
 ---
 
@@ -74,6 +75,7 @@ Todo esto **sin escribir codigo de test manual**.
 specmatic_tl/
 ├── README.md                                    # Esta guia
 ├── .gitignore
+├── specmatic.jar                                # Ejecutable de Specmatic
 ├── specmatic.yaml                               # Config principal (ambas APIs)
 ├── specmatic-stub-products.yaml                 # Config stub solo Products
 ├── specmatic-stub-orders.yaml                   # Config stub solo Orders
@@ -209,29 +211,45 @@ products_api_examples/
 
 ---
 
-## 6. Prerequisitos
+## 6. Prerequisitos e instalacion
 
-### Opcion A: Docker (recomendado para la demo)
+### Opcion A: JAR directo (recomendado para esta capacitacion)
+
+El JAR de Specmatic esta incluido en este repositorio (`specmatic.jar`). Solo necesitas Java 17+.
+
+```bash
+# Verificar que tengas Java
+java -version
+
+# Verificar que el JAR funciona
+java -jar specmatic.jar --help
+```
+
+**Tip:** Para no escribir `java -jar specmatic.jar` cada vez, podes crear un alias:
+
+```bash
+# Linux / macOS - agregar a ~/.bashrc o ~/.zshrc
+alias specmatic='java -jar /ruta/completa/specmatic.jar'
+
+# Windows - crear specmatic.bat en una carpeta del PATH
+# Contenido: java -jar C:\ruta\completa\specmatic.jar %*
+```
+
+Descarga de versiones nuevas: [GitHub Releases](https://github.com/specmatic/specmatic/releases) o [Maven Central](https://central.sonatype.com/artifact/io.specmatic/specmatic-executable)
+
+### Opcion B: Docker
 
 ```bash
 docker pull specmatic/specmatic
 ```
 
-### Opcion B: npm
+### Opcion C: npm
 
 ```bash
 npm install specmatic -g
+# o usar con npx sin instalar globalmente
+npx specmatic --help
 ```
-
-### Opcion C: JAR directo
-
-Descargar desde [specmatic.io](https://specmatic.io) y ejecutar con:
-
-```bash
-java -jar specmatic.jar <comando>
-```
-
-> En esta guia usaremos **Docker** como metodo principal y mostraremos alternativas con `npx`.
 
 ---
 
@@ -241,23 +259,31 @@ java -jar specmatic.jar <comando>
 
 ### 7.1 Levantar stub de Products API (puerto 9000)
 
+**Con JAR (recomendado):**
+
+```bash
+java -jar specmatic.jar stub --config specmatic-stub-products.yaml --port 9000
+```
+
 **Con Docker (Windows):**
 
 ```bash
-docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic mock --config specmatic-stub-products.yaml
+docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic stub --config specmatic-stub-products.yaml
 ```
 
 **Con Docker (Linux/macOS):**
 
 ```bash
-docker run -p 9000:9000 -v "$(pwd):/usr/src/app" specmatic/specmatic mock --config specmatic-stub-products.yaml
+docker run -p 9000:9000 -v "$(pwd):/usr/src/app" specmatic/specmatic stub --config specmatic-stub-products.yaml
 ```
 
 **Con npx:**
 
 ```bash
-npx specmatic mock --config specmatic-stub-products.yaml --port 9000
+npx specmatic stub --config specmatic-stub-products.yaml --port 9000
 ```
+
+> Por defecto el stub levanta en `http://localhost:9000`. Specmatic genera respuestas validas segun el contrato.
 
 ### 7.2 Probar que funciona
 
@@ -296,10 +322,32 @@ curl "http://localhost:9000/products?category=clothing"
 
 ```bash
 # Terminal 1: Products API en puerto 9000
-docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic mock --config specmatic-stub-products.yaml
+java -jar specmatic.jar stub --config specmatic-stub-products.yaml --port 9000
 
 # Terminal 2: Orders API en puerto 9001
-docker run -p 9001:9001 -v "%cd%:/usr/src/app" specmatic/specmatic mock --config specmatic-stub-orders.yaml --port 9001
+java -jar specmatic.jar stub --config specmatic-stub-orders.yaml --port 9001
+```
+
+### 7.5 Stub directo de un contrato (sin config)
+
+Si solo queres levantar un stub rapido de un contrato sin archivo de configuracion:
+
+```bash
+# Stub de un solo archivo OpenAPI
+java -jar specmatic.jar stub contracts/products_api.yaml
+
+# Stub con puerto custom
+java -jar specmatic.jar stub contracts/products_api.yaml --port 8090
+
+# Stub con debug (muestra que example files carga)
+java -jar specmatic.jar stub contracts/products_api.yaml --debug
+```
+
+### 7.6 Health check
+
+```bash
+curl http://localhost:9000/actuator/health
+# Respuesta: {"status":"UP"}
 ```
 
 ---
@@ -398,7 +446,7 @@ curl -X POST http://localhost:9000/_specmatic/expectations \
 Para que el stub SOLO responda con expectativas definidas (sin generar respuestas automaticas):
 
 ```bash
-docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic mock --config specmatic-stub-products.yaml --strict
+java -jar specmatic.jar stub --config specmatic-stub-products.yaml --strict
 ```
 
 En modo estricto, si llega un request que no matchea ninguna expectativa, Specmatic devuelve **HTTP 400** en lugar de generar una respuesta.
@@ -413,6 +461,18 @@ En modo estricto, si llega un request que no matchea ninguna expectativa, Specma
 
 Suponiendo que el BE tiene su API corriendo en `http://localhost:8080`:
 
+**Con JAR (recomendado):**
+
+```bash
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080
+```
+
+**Con JAR contra un contrato directo (sin config):**
+
+```bash
+java -jar specmatic.jar test contracts/products_api.yaml --testBaseURL http://localhost:8080
+```
+
 **Con Docker (Windows):**
 
 ```bash
@@ -423,12 +483,6 @@ docker run -v "%cd%:/usr/src/app" --network host specmatic/specmatic test --conf
 
 ```bash
 npx specmatic test --config specmatic-test.yaml --testBaseURL http://localhost:8080
-```
-
-**Contra una API publica para probar (sin BE local):**
-
-```bash
-docker run -v "%cd%:/usr/src/app" specmatic/specmatic test contracts/products_api.yaml --testBaseURL https://my-json-server.typicode.com
 ```
 
 ### 9.2 Que testea Specmatic automaticamente
@@ -447,22 +501,47 @@ A partir del contrato, Specmatic genera tests para:
 ### 9.3 Generar reporte JUnit
 
 ```bash
-docker run -v "%cd%:/usr/src/app" specmatic/specmatic test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --junitReportDir ./build/reports
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --junitReportDir ./build/reports
 ```
 
 El reporte se genera en `./build/reports/` y puede integrarse en CI/CD (Jenkins, GitHub Actions, etc.).
 
-### 9.4 Filtrar tests especificos
+El reporte HTML se genera en `./build/reports/specmatic/html/index.html`.
+
+### 9.4 Tests generativos (boundary conditions)
+
+Specmatic puede generar automaticamente tests de boundary conditions (valores limite, nulos, strings vacios, etc.):
+
+```bash
+# Activar tests generativos
+set SPECMATIC_GENERATIVE_TESTS=true
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080
+
+# Solo tests positivos (sin negativos)
+set ONLY_POSITIVE=true
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080
+```
+
+### 9.5 Filtrar tests especificos
 
 ```bash
 # Solo tests de POST
-npx specmatic test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --filter="METHOD='POST'"
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --filter="METHOD='POST'"
 
 # Solo tests de un endpoint especifico
-npx specmatic test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --filter="PATH='/products/{id}'"
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --filter="PATH='/products/{id}'"
 
 # Solo tests que devuelven 200
-npx specmatic test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --filter="STATUS='200'"
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --filter="STATUS='200'"
+
+# Por operationId del contrato OpenAPI
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --filter="OPERATION-ID='getProductById'"
+
+# Por tag
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --filter="TAGS='Products'"
+
+# Combinar filtros
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --filter="METHOD='POST' && PATH='/products'"
 ```
 
 ---
@@ -516,7 +595,11 @@ dependencies:
 ### 10.3 Levantar stub desde el repo central
 
 ```bash
-docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic mock --config specmatic-git.yaml
+# Con JAR
+java -jar specmatic.jar stub --config specmatic-git.yaml
+
+# Con Docker
+docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic stub --config specmatic-git.yaml
 ```
 
 Specmatic clona el repo, descarga los contratos y las expectativas, y levanta el stub. **Todos los equipos usan la misma fuente de verdad.**
@@ -527,7 +610,7 @@ Con la opcion `--match-branch`, Specmatic busca una branch con el mismo nombre q
 
 ```bash
 # Si estas en branch "feature/new-payment", Specmatic busca esa branch en el repo de contratos
-npx specmatic mock --config specmatic-git.yaml --match-branch
+java -jar specmatic.jar stub --config specmatic-git.yaml --match-branch
 ```
 
 ---
@@ -599,11 +682,9 @@ jobs:
       - name: Start API
         run: ./start-api.sh &
 
-      - name: Run contract tests
+      - name: Run contract tests (JAR)
         run: |
-          docker run --network host \
-            -v "$(pwd):/usr/src/app" \
-            specmatic/specmatic test \
+          java -jar specmatic.jar test \
             --config specmatic-test.yaml \
             --testBaseURL http://localhost:8080 \
             --junitReportDir ./build/reports
@@ -618,11 +699,309 @@ jobs:
 
 ---
 
-## 12. Comparacion con otras herramientas
+## 12. Integracion con Maven (BE)
+
+> **Escenario:** El equipo de BE quiere que los contract tests se ejecuten automaticamente con `mvn test`, igual que cualquier otro test unitario o de integracion.
+
+### 12.1 Dependencias Maven
+
+Agregar al `pom.xml` del proyecto BE:
+
+```xml
+<dependencies>
+    <!-- Specmatic JUnit5 Support - ejecuta contract tests como tests de JUnit -->
+    <dependency>
+        <groupId>io.specmatic</groupId>
+        <artifactId>junit5-support</artifactId>
+        <version>2.39.5</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- JUnit 5 -->
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>5.10.2</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+> **Nota:** Verificar la ultima version disponible en [Maven Central](https://central.sonatype.com/artifact/io.specmatic/junit5-support). El groupId anterior `in.specmatic` esta deprecado, usar siempre `io.specmatic`.
+
+### 12.2 Clase de Contract Test (zero codigo)
+
+Crear la clase en `src/test/java/`:
+
+**Java:**
+
+```java
+package com.tu.empresa.tests;
+
+import io.specmatic.test.SpecmaticContractTest;
+
+public class ContractTests implements SpecmaticContractTest {
+    // No necesita codigo.
+    // Specmatic genera los tests automaticamente desde la spec.
+}
+```
+
+**Kotlin:**
+
+```kotlin
+package com.tu.empresa.tests
+
+import io.specmatic.test.SpecmaticContractTest
+
+class ContractTests : SpecmaticContractTest
+```
+
+Eso es todo. **Zero glue code.** Specmatic se encarga de generar y ejecutar los tests basandose en la configuracion.
+
+### 12.3 Configuracion specmatic.yaml (en la raiz del proyecto BE)
+
+El archivo `specmatic.yaml` debe estar en el mismo directorio que el `pom.xml`:
+
+**Opcion A: Contratos en filesystem local (para desarrollo)**
+
+```yaml
+version: 3
+systemUnderTest:
+  service:
+    $ref: "#/components/services/productsService"
+components:
+  services:
+    productsService:
+      description: Products API
+      definitions:
+        - definition:
+            source:
+              filesystem:
+                directory: .
+            specs:
+              - spec:
+                  path: ./contracts/products_api.yaml
+```
+
+**Opcion B: Contratos desde un repositorio Git central (para CI/CD)**
+
+```yaml
+version: 3
+systemUnderTest:
+  service:
+    $ref: "#/components/services/productsService"
+components:
+  sources:
+    contractRepo:
+      git:
+        url: https://github.com/TU-ORG/specmatic-contracts.git
+        branch: main
+  services:
+    productsService:
+      description: Products API
+      definitions:
+        - definition:
+            source:
+              $ref: "#/components/sources/contractRepo"
+            specs:
+              - spec:
+                  path: contracts/products_api.yaml
+```
+
+**Opcion C: Con autenticacion (repos privados en CI/CD)**
+
+```yaml
+components:
+  sources:
+    contractRepo:
+      git:
+        url: https://${CONTRACT_REPO_TOKEN}@github.com/TU-ORG/specmatic-contracts.git
+        branch: main
+```
+
+### 12.4 Ejecutar con Maven
+
+```bash
+# Ejecutar contract tests (la app BE debe estar corriendo)
+mvn test
+
+# Solo la clase de contract tests
+mvn test -Dtest=ContractTests
+
+# Con output verbose
+mvn test -Dtest=ContractTests -Dsurefire.useFile=false
+```
+
+El resultado se ve como cualquier test de JUnit:
+
+```
+[INFO] Running com.tu.empresa.tests.ContractTests
+Tests run: 12, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+
+Los reportes se generan en:
+- JUnit XML: `target/surefire-reports/`
+- HTML (Specmatic): `build/reports/specmatic/html/index.html`
+
+### 12.5 Configurar Maven Surefire (opcional)
+
+Si necesitas configurar el plugin de Surefire para los contract tests:
+
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>3.2.5</version>
+            <configuration>
+                <!-- Incluir los contract tests -->
+                <includes>
+                    <include>**/*ContractTests.java</include>
+                    <include>**/*Test.java</include>
+                </includes>
+                <!-- Variables de entorno para Specmatic -->
+                <environmentVariables>
+                    <!-- Activar tests generativos (boundary conditions) -->
+                    <!-- <SPECMATIC_GENERATIVE_TESTS>true</SPECMATIC_GENERATIVE_TESTS> -->
+                    <!-- Solo tests positivos -->
+                    <!-- <ONLY_POSITIVE>true</ONLY_POSITIVE> -->
+                </environmentVariables>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+```
+
+### 12.6 Perfil Maven para contract tests separados
+
+Si queres separar los contract tests de los tests unitarios con un perfil:
+
+```xml
+<profiles>
+    <profile>
+        <id>contract-tests</id>
+        <build>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.2.5</version>
+                    <configuration>
+                        <includes>
+                            <include>**/*ContractTests.java</include>
+                        </includes>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </build>
+    </profile>
+</profiles>
+```
+
+```bash
+# Solo contract tests
+mvn test -Pcontract-tests
+
+# Solo tests unitarios (excluir contract tests)
+mvn test -Dtest='!ContractTests'
+```
+
+### 12.7 Ejemplo completo de pom.xml minimo
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.tu.empresa</groupId>
+    <artifactId>products-api</artifactId>
+    <version>1.0.0</version>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <specmatic.version>2.39.5</specmatic.version>
+    </properties>
+
+    <dependencies>
+        <!-- Tu framework (Spring Boot, Quarkus, etc.) -->
+        <!-- ... -->
+
+        <!-- Specmatic Contract Testing -->
+        <dependency>
+            <groupId>io.specmatic</groupId>
+            <artifactId>junit5-support</artifactId>
+            <version>${specmatic.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+### 12.8 Gradle equivalente
+
+Para equipos que usan Gradle en lugar de Maven:
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    testImplementation("io.specmatic:junit5-support:2.39.5")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
+```
+
+```bash
+# Ejecutar contract tests con Gradle
+./gradlew test
+
+# Solo contract tests
+./gradlew test --tests '*ContractTests'
+```
+
+### 12.9 Workflow completo por rol con Maven
+
+```
+BE Developer:
+  1. Clona el repo del servicio
+  2. specmatic.yaml ya apunta a los contratos (local o Git)
+  3. Desarrolla la API
+  4. mvn test               ← Contract tests se ejecutan automaticamente
+  5. Si falla → el contrato no se cumple, corregir antes de pushear
+  6. git push → CI ejecuta mvn test → contract tests validan en el pipeline
+```
+
+---
+
+## 13. Comparacion con otras herramientas
 
 > **Contexto para la capacitacion:** Es comun que otros lideres pregunten "por que no usar WireMock?" o "Pact no hace lo mismo?". Esta seccion responde esas preguntas con datos concretos.
 
-### 12.1 Las 4 herramientas mas comunes
+### 13.1 Las 4 herramientas mas comunes
 
 | Herramienta | Enfoque | En pocas palabras |
 |---|---|---|
@@ -631,7 +1010,7 @@ jobs:
 | **Pact** | Consumer-Driven Contract Testing (CDCT) | El consumer define el contrato en codigo. |
 | **Spring Cloud Contract** | Provider-Driven + CDC | Contratos en Groovy DSL, genera stubs y tests. |
 
-### 12.2 Tabla comparativa detallada
+### 13.2 Tabla comparativa detallada
 
 | Dimension | Specmatic | WireMock | Pact | Spring Cloud Contract |
 |---|---|---|---|---|
@@ -649,7 +1028,7 @@ jobs:
 | **Curva de aprendizaje** | Baja (solo conocer tu spec) | Baja para mocking | Alta (DSL + Broker + states) | Media (requiere Spring) |
 | **Licencia** | MIT | Apache 2.0 | MIT | Apache 2.0 |
 
-### 12.3 Specmatic vs WireMock
+### 13.3 Specmatic vs WireMock
 
 WireMock es la herramienta mas conocida para mocking de APIs. La diferencia fundamental:
 
@@ -674,7 +1053,7 @@ Con Specmatic ese escenario es imposible porque el contrato es la unica fuente d
 
 > **Cuando SI usar WireMock:** Si ya tenes mocks de WireMock y solo necesitas mocking sin contract testing, WireMock cumple. Pero si necesitas **garantizar que los mocks representan la API real**, necesitas Specmatic.
 
-### 12.4 Specmatic vs Pact
+### 13.4 Specmatic vs Pact
 
 Pact es la herramienta mas conocida de contract testing. La diferencia clave es **quien define el contrato**:
 
@@ -707,7 +1086,7 @@ Con Specmatic:
 
 > **Cuando SI usar Pact:** Si tu equipo no hace API First Development, no tiene specs OpenAPI, y el consumer necesita conducir el contrato. Pero si ya tenes specs OpenAPI (o queres adoptarlas), Specmatic es mas directo.
 
-### 12.5 Specmatic vs Spring Cloud Contract
+### 13.5 Specmatic vs Spring Cloud Contract
 
 | | Spring Cloud Contract | Specmatic |
 |---|---|---|
@@ -719,7 +1098,7 @@ Con Specmatic:
 
 > **Cuando SI usar Spring Cloud Contract:** Si todo tu stack es Spring Boot y ya lo usas. Pero si tenes equipos multi-lenguaje o queres evitar el acoplamiento al ecosistema Spring, Specmatic es mejor opcion.
 
-### 12.6 Resumen visual
+### 13.6 Resumen visual
 
 ```
                     ¿Necesitas contract testing?
@@ -744,15 +1123,15 @@ Con Specmatic:
 
 ---
 
-## 13. Resumen de beneficios
+## 14. Resumen de beneficios
 
 ### Para el equipo
 
 | Rol | Como usa Specmatic | Beneficio |
 |---|---|---|
-| **FE** | Levanta stub con `specmatic mock` | Desarrolla sin depender de BE |
+| **FE** | Levanta stub con `specmatic stub` | Desarrolla sin depender de BE |
 | **QAA** | Agrega expectativas + usa stub para E2E | Tests confiables y sincronizados |
-| **BE** | Ejecuta `specmatic test` en cada PR | Valida el contrato automaticamente |
+| **BE** | Ejecuta `specmatic test` o `mvn test` en cada PR | Valida el contrato automaticamente |
 | **TL** | Revisa que el contrato se cumpla en CI/CD | Confianza en la integracion |
 
 ### Para la organizacion
@@ -768,37 +1147,83 @@ Con Specmatic:
 ## Comandos rapidos de referencia
 
 ```bash
+# ================================================================
+# JAR (recomendado)
+# ================================================================
+
 # === STUB (FE / QAA) ===
 
-# Levantar stub con config
-docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic mock --config specmatic.yaml
+# Stub con config
+java -jar specmatic.jar stub --config specmatic.yaml
 
-# Levantar stub de un solo contrato
-docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic mock contracts/products_api.yaml
+# Stub de un solo contrato
+java -jar specmatic.jar stub contracts/products_api.yaml
 
-# Stub en modo estricto (solo expectativas definidas)
-docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic mock --config specmatic.yaml --strict
+# Stub con puerto custom
+java -jar specmatic.jar stub contracts/products_api.yaml --port 8090
 
-# Health check del stub
+# Stub en modo estricto
+java -jar specmatic.jar stub --config specmatic.yaml --strict
+
+# Stub con debug (ver que examples carga)
+java -jar specmatic.jar stub contracts/products_api.yaml --debug
+
+# Health check
 curl http://localhost:9000/actuator/health
 
 
 # === CONTRACT TESTING (BE) ===
 
-# Ejecutar contract tests
+# Contract tests con config
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080
+
+# Contract tests directo contra un contrato
+java -jar specmatic.jar test contracts/products_api.yaml --testBaseURL http://localhost:8080
+
+# Con reporte JUnit
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --junitReportDir ./build/reports
+
+# Con filtros
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --filter="METHOD='POST'"
+
+# Tests generativos (boundary conditions)
+set SPECMATIC_GENERATIVE_TESTS=true
+java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080
+
+
+# === DESDE GITHUB ===
+
+# Stub desde repo central
+java -jar specmatic.jar stub --config specmatic-git.yaml
+
+# Stub con match-branch
+java -jar specmatic.jar stub --config specmatic-git.yaml --match-branch
+
+
+# === MAVEN (BE) ===
+
+# Ejecutar contract tests via Maven
+mvn test
+
+# Solo contract tests
+mvn test -Dtest=ContractTests
+
+# Contract tests con perfil
+mvn test -Pcontract-tests
+
+
+# ================================================================
+# DOCKER (alternativa)
+# ================================================================
+
+# Stub (Windows)
+docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic stub --config specmatic.yaml
+
+# Stub (Linux/macOS)
+docker run -p 9000:9000 -v "$(pwd):/usr/src/app" specmatic/specmatic stub --config specmatic.yaml
+
+# Contract tests
 docker run -v "%cd%:/usr/src/app" --network host specmatic/specmatic test --config specmatic-test.yaml --testBaseURL http://localhost:8080
-
-# Contract tests con reporte
-docker run -v "%cd%:/usr/src/app" --network host specmatic/specmatic test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --junitReportDir ./build/reports
-
-# Contract tests en modo estricto (solo tests con examples)
-docker run -v "%cd%:/usr/src/app" --network host specmatic/specmatic test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --strict
-
-
-# === DESDE GITHUB (todos) ===
-
-# Levantar stub desde repo central
-docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic mock --config specmatic-git.yaml
 ```
 
 ---
@@ -806,9 +1231,11 @@ docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic mock --config
 ## Links utiles
 
 - [Documentacion oficial](https://docs.specmatic.io/contract_driven_development)
+- [CLI Quick Start](https://docs.specmatic.io/getting_started/cli_quick_start.html)
+- [Contract Testing](https://docs.specmatic.io/contract_driven_development/contract_testing.html)
 - [Service Virtualization](https://docs.specmatic.io/contract_driven_development/service_virtualization)
-- [Contract Testing](https://docs.specmatic.io/contract_driven_development/contract_testing)
-- [GitHub de Specmatic](https://github.com/znsio/specmatic)
+- [GitHub de Specmatic](https://github.com/specmatic/specmatic)
+- [Maven Central - junit5-support](https://central.sonatype.com/artifact/io.specmatic/junit5-support)
 - [Specmatic vs WireMock (oficial)](https://specmatic.io/comparisons/comparison-specmatic-vs-wiremock/)
 - [Specmatic vs Pact (oficial)](https://specmatic.io/comparisons/specmatic-vs-pact-io-and-pactflow-io/)
 - [Specmatic vs Spring Cloud Contract (oficial)](https://specmatic.io/comparisons/comparison-specmatic-vs-spring-cloud-contract/)
