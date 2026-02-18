@@ -55,15 +55,15 @@ Todo esto **sin escribir codigo de test manual**.
   Paso 1: Disenar API              Paso 2: Trabajo en paralelo
   ┌──────────────────┐         ┌─────────────────────────────────┐
   │  BE + FE + QAA   │         │  FE  --> Stub (mock server)     │
-  │  disenan juntos   │  ───>  │  QAA --> Stub + expectativas    │
-  │  la OpenAPI spec  │         │  BE  --> Contract tests         │
+  │  disenan juntos  │  ───>   │  QAA --> Stub + expectativas    │
+  │  la OpenAPI spec │         │  BE  --> Contract tests         │
   └──────────────────┘         └─────────────────────────────────┘
                                           │
                                           v
                                Paso 3: Integracion sin sorpresas
                                ┌─────────────────────────────────┐
-                               │  CI/CD valida contratos en cada  │
-                               │  PR automaticamente              │
+                               │  CI/CD valida contratos en cada │
+                               │  PR automaticamente             │
                                └─────────────────────────────────┘
 ```
 
