@@ -1,0 +1,28 @@
+{
+  "http-request": {
+    "method": "POST",
+    "path": "/products",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "name": "Bluetooth Speaker",
+      "price": 49.99,
+      "category": "electronics",
+      "stock": 75
+    }
+  },
+  "http-response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "id": 10,
+      "name": "Bluetooth Speaker",
+      "price": 49.99,
+      "category": "electronics",
+      "stock": 75
+    }
+  }
+}

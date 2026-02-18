@@ -1,0 +1,244 @@
+openapi: 3.0.3
+info:
+  title: Orders API
+  description: API de ordenes - depende de Products API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8081
+paths:
+  /orders:
+    get:
+      summary: Listar ordenes
+      operationId: listOrders
+      tags:
+        - Orders
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - confirmed
+              - shipped
+              - delivered
+      responses:
+        "200":
+          description: Lista de ordenes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+              examples:
+                LIST_PENDING_ORDERS:
+                  value:
+                    - id: 100
+                      productId: 1
+                      quantity: 2
+                      totalPrice: 2599.98
+                      status: "pending"
+                      customerEmail: "john@example.com"
+    post:
+      summary: Crear una orden
+      operationId: createOrder
+      tags:
+        - Orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+            examples:
+              CREATE_ORDER_SUCCESS:
+                value:
+                  productId: 1
+                  quantity: 2
+                  customerEmail: "john@example.com"
+      responses:
+        "201":
+          description: Orden creada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+              examples:
+                CREATE_ORDER_SUCCESS:
+                  value:
+                    id: 101
+                    productId: 1
+                    quantity: 2
+                    totalPrice: 2599.98
+                    status: "pending"
+                    customerEmail: "john@example.com"
+        "400":
+          description: Request invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /orders/{id}:
+    get:
+      summary: Obtener orden por ID
+      operationId: getOrderById
+      tags:
+        - Orders
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Orden encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+              examples:
+                GET_ORDER_BY_ID:
+                  value:
+                    id: 100
+                    productId: 1
+                    quantity: 2
+                    totalPrice: 2599.98
+                    status: "pending"
+                    customerEmail: "john@example.com"
+        "404":
+          description: Orden no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                GET_ORDER_NOT_FOUND:
+                  value:
+                    code: 404
+                    message: "Order not found"
+        "500":
+          description: Error interno del servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /orders/{id}/status:
+    patch:
+      summary: Actualizar estado de la orden
+      operationId: updateOrderStatus
+      tags:
+        - Orders
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrderStatusRequest"
+            examples:
+              CONFIRM_ORDER:
+                value:
+                  status: "confirmed"
+      responses:
+        "200":
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+              examples:
+                CONFIRM_ORDER:
+                  value:
+                    id: 100
+                    productId: 1
+                    quantity: 2
+                    totalPrice: 2599.98
+                    status: "confirmed"
+                    customerEmail: "john@example.com"
+        "404":
+          description: Orden no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    Order:
+      type: object
+      required:
+        - id
+        - productId
+        - quantity
+        - totalPrice
+        - status
+        - customerEmail
+      properties:
+        id:
+          type: integer
+        productId:
+          type: integer
+        quantity:
+          type: integer
+        totalPrice:
+          type: number
+          format: double
+        status:
+          type: string
+          enum:
+            - pending
+            - confirmed
+            - shipped
+            - delivered
+        customerEmail:
+          type: string
+          format: email
+
+    CreateOrderRequest:
+      type: object
+      required:
+        - productId
+        - quantity
+        - customerEmail
+      properties:
+        productId:
+          type: integer
+        quantity:
+          type: integer
+        customerEmail:
+          type: string
+          format: email
+
+    UpdateOrderStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - pending
+            - confirmed
+            - shipped
+            - delivered
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+        message:
+          type: string

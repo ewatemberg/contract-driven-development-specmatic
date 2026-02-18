@@ -1,0 +1,26 @@
+{
+  "http-request": {
+    "method": "PATCH",
+    "path": "/orders/100/status",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "status": "shipped"
+    }
+  },
+  "http-response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "id": 100,
+      "productId": 1,
+      "quantity": 2,
+      "totalPrice": 2599.98,
+      "status": "shipped",
+      "customerEmail": "john@example.com"
+    }
+  }
+}

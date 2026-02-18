@@ -1,0 +1,25 @@
+{
+  "http-request": {
+    "method": "GET",
+    "path": "/orders",
+    "query": {
+      "status": "confirmed"
+    }
+  },
+  "http-response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": [
+      {
+        "id": 103,
+        "productId": 2,
+        "quantity": 1,
+        "totalPrice": 29.99,
+        "status": "confirmed",
+        "customerEmail": "carlos@example.com"
+      }
+    ]
+  }
+}

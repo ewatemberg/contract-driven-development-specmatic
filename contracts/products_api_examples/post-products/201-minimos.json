@@ -1,0 +1,28 @@
+{
+  "http-request": {
+    "method": "POST",
+    "path": "/products",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "name": "X",
+      "price": 0.01,
+      "category": "food",
+      "stock": 0
+    }
+  },
+  "http-response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "id": 11,
+      "name": "X",
+      "price": 0.01,
+      "category": "food",
+      "stock": 0
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "http-request": {
+    "method": "POST",
+    "path": "/orders",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "productId": 5,
+      "quantity": 3,
+      "customerEmail": "maria@example.com"
+    }
+  },
+  "http-response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "id": 102,
+      "productId": 5,
+      "quantity": 3,
+      "totalPrice": 106.50,
+      "status": "pending",
+      "customerEmail": "maria@example.com"
+    }
+  }
+}

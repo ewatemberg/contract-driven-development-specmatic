@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.specmatic.io)",
+      "Bash(git init:*)",
+      "WebFetch(domain:docs.pact.io)",
+      "WebFetch(domain:specmatic.io)",
+      "WebFetch(domain:medium.com)"
+    ]
+  }
+}

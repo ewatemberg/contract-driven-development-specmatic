@@ -1,0 +1,16 @@
+version: 3
+systemUnderTest:
+  service:
+    $ref: "#/components/services/productsService"
+components:
+  services:
+    productsService:
+      description: Products API - Contract Testing against BE
+      definitions:
+        - definition:
+            source:
+              filesystem:
+                directory: .
+            specs:
+              - spec:
+                  path: ./contracts/products_api.yaml

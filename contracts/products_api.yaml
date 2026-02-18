@@ -1,0 +1,275 @@
+openapi: 3.0.3
+info:
+  title: Products API
+  description: API de productos para el e-commerce
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /products:
+    get:
+      summary: Listar productos
+      operationId: listProducts
+      tags:
+        - Products
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - electronics
+              - clothing
+              - food
+      responses:
+        "200":
+          description: Lista de productos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+              examples:
+                LIST_ALL_PRODUCTS:
+                  value:
+                    - id: 1
+                      name: "Laptop Pro 15"
+                      price: 1299.99
+                      category: "electronics"
+                      stock: 25
+                    - id: 2
+                      name: "Wireless Mouse"
+                      price: 29.99
+                      category: "electronics"
+                      stock: 150
+    post:
+      summary: Crear un producto
+      operationId: createProduct
+      tags:
+        - Products
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductRequest"
+            examples:
+              CREATE_PRODUCT_SUCCESS:
+                value:
+                  name: "Bluetooth Speaker"
+                  price: 49.99
+                  category: "electronics"
+                  stock: 75
+      responses:
+        "201":
+          description: Producto creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+              examples:
+                CREATE_PRODUCT_SUCCESS:
+                  value:
+                    id: 10
+                    name: "Bluetooth Speaker"
+                    price: 49.99
+                    category: "electronics"
+                    stock: 75
+        "400":
+          description: Request invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                CREATE_PRODUCT_BAD_REQUEST:
+                  value:
+                    code: 400
+                    message: "Invalid product data"
+
+  /products/{id}:
+    get:
+      summary: Obtener producto por ID
+      operationId: getProductById
+      tags:
+        - Products
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Producto encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+              examples:
+                GET_PRODUCT_BY_ID:
+                  value:
+                    id: 1
+                    name: "Laptop Pro 15"
+                    price: 1299.99
+                    category: "electronics"
+                    stock: 25
+        "404":
+          description: Producto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                GET_PRODUCT_NOT_FOUND:
+                  value:
+                    code: 404
+                    message: "Product not found"
+        "500":
+          description: Error interno del servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      summary: Actualizar producto
+      operationId: updateProduct
+      tags:
+        - Products
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductRequest"
+            examples:
+              UPDATE_PRODUCT_SUCCESS:
+                value:
+                  name: "Laptop Pro 15 - Updated"
+                  price: 1199.99
+                  stock: 20
+      responses:
+        "200":
+          description: Producto actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+              examples:
+                UPDATE_PRODUCT_SUCCESS:
+                  value:
+                    id: 1
+                    name: "Laptop Pro 15 - Updated"
+                    price: 1199.99
+                    category: "electronics"
+                    stock: 20
+        "404":
+          description: Producto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      summary: Eliminar producto
+      operationId: deleteProduct
+      tags:
+        - Products
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Producto eliminado exitosamente
+        "404":
+          description: Producto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    Product:
+      type: object
+      required:
+        - id
+        - name
+        - price
+        - category
+        - stock
+      properties:
+        id:
+          type: integer
+          description: ID unico del producto
+        name:
+          type: string
+          description: Nombre del producto
+        price:
+          type: number
+          format: double
+          description: Precio del producto
+        category:
+          type: string
+          enum:
+            - electronics
+            - clothing
+            - food
+          description: Categoria del producto
+        stock:
+          type: integer
+          description: Cantidad en stock
+
+    CreateProductRequest:
+      type: object
+      required:
+        - name
+        - price
+        - category
+        - stock
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+          format: double
+        category:
+          type: string
+          enum:
+            - electronics
+            - clothing
+            - food
+        stock:
+          type: integer
+
+    UpdateProductRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+          format: double
+        stock:
+          type: integer
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+        message:
+          type: string

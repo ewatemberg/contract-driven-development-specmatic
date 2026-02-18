@@ -1,0 +1,29 @@
+# Ejemplo: Configuracion apuntando a un repositorio central de contratos en GitHub
+# Este archivo muestra como cada equipo puede referenciar los contratos desde un repo compartido
+version: 3
+dependencies:
+  services:
+    - service:
+        description: Products API
+        definitions:
+          - definition:
+              source:
+                git:
+                  url: https://github.com/TU-ORG/specmatic-contracts.git
+                  branch: main
+              specs:
+                - spec:
+                    id: productsApi
+                    path: contracts/products_api.yaml
+    - service:
+        description: Orders API
+        definitions:
+          - definition:
+              source:
+                git:
+                  url: https://github.com/TU-ORG/specmatic-contracts.git
+                  branch: main
+              specs:
+                - spec:
+                    id: ordersApi
+                    path: contracts/orders_api.yaml

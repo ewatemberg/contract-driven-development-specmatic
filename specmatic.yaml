@@ -1,0 +1,25 @@
+version: 3
+dependencies:
+  services:
+    - service:
+        description: Products API
+        definitions:
+          - definition:
+              source:
+                filesystem:
+                  directory: .
+              specs:
+                - spec:
+                    id: productsApi
+                    path: ./contracts/products_api.yaml
+    - service:
+        description: Orders API
+        definitions:
+          - definition:
+              source:
+                filesystem:
+                  directory: .
+              specs:
+                - spec:
+                    id: ordersApi
+                    path: ./contracts/orders_api.yaml

@@ -1,0 +1,20 @@
+{
+  "http-request": {
+    "method": "GET",
+    "path": "/orders/100"
+  },
+  "http-response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "id": 100,
+      "productId": 1,
+      "quantity": 2,
+      "totalPrice": 2599.98,
+      "status": "pending",
+      "customerEmail": "john@example.com"
+    }
+  }
+}

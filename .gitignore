@@ -1,0 +1,19 @@
+# Specmatic
+build/
+.specmatic/
+*.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (si FE usa npm)
+node_modules/
+
+# Logs
+*.log

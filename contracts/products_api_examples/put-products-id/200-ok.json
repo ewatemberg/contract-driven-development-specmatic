@@ -1,0 +1,27 @@
+{
+  "http-request": {
+    "method": "PUT",
+    "path": "/products/1",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "name": "Laptop Pro 15 - Updated",
+      "price": 1199.99,
+      "stock": 20
+    }
+  },
+  "http-response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "id": 1,
+      "name": "Laptop Pro 15 - Updated",
+      "price": 1199.99,
+      "category": "electronics",
+      "stock": 20
+    }
+  }
+}

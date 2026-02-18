@@ -1,0 +1,19 @@
+{
+  "http-request": {
+    "method": "GET",
+    "path": "/products/1"
+  },
+  "http-response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "id": 1,
+      "name": "Laptop Pro 15",
+      "price": 1299.99,
+      "category": "electronics",
+      "stock": 25
+    }
+  }
+}
