@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: Users API
+  description: API minima sin examples - para demostrar el faker de Specmatic
+  version: 1.0.0
+servers:
+  - url: http://localhost:9000
+paths:
+  /users:
+    get:
+      summary: Listar usuarios
+      operationId: listUsers
+      tags:
+        - Users
+      parameters:
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - admin
+              - editor
+              - viewer
+      responses:
+        "200":
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      summary: Crear un usuario
+      operationId: createUser
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Request invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /users/{id}:
+    get:
+      summary: Obtener usuario por ID
+      operationId: getUserById
+      tags:
+        - Users
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Usuario encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - role
+        - active
+      properties:
+        id:
+          type: integer
+          description: ID unico del usuario
+        name:
+          type: string
+          description: Nombre completo
+        email:
+          type: string
+          format: email
+          description: Email del usuario
+        role:
+          type: string
+          enum:
+            - admin
+            - editor
+            - viewer
+          description: Rol del usuario
+        active:
+          type: boolean
+          description: Si el usuario esta activo
+
+    CreateUserRequest:
+      type: object
+      required:
+        - name
+        - email
+        - role
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum:
+            - admin
+            - editor
+            - viewer
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+        message:
+          type: string

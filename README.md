@@ -12,14 +12,15 @@ Capacitacion practica sobre como usar **Specmatic** para implementar **Contract 
 4. [Estructura del proyecto](#4-estructura-del-proyecto)
 5. [Convencion de expectativas](#5-convencion-de-expectativas)
 6. [Prerequisitos e instalacion](#6-prerequisitos-e-instalacion)
-7. [Demo 1 - Levantar el Stub (FE / QAA)](#7-demo-1---levantar-el-stub-fe--qaa)
-8. [Demo 2 - Expectativas externas (QAA)](#8-demo-2---expectativas-externas-qaa)
-9. [Demo 3 - Contract Testing (BE)](#9-demo-3---contract-testing-be)
-10. [Demo 4 - Repositorio central de contratos](#10-demo-4---repositorio-central-de-contratos)
-11. [Demo 5 - Que pasa cuando alguien rompe el contrato](#11-demo-5---que-pasa-cuando-alguien-rompe-el-contrato)
-12. [Integracion con Maven (BE)](#12-integracion-con-maven-be)
-13. [Comparacion con otras herramientas](#13-comparacion-con-otras-herramientas)
-14. [Resumen de beneficios](#14-resumen-de-beneficios)
+7. [Demo 1 - Faker: stub sin expectativas](#7-demo-1---faker-stub-sin-expectativas)
+8. [Demo 2 - Levantar el Stub con expectativas (FE / QAA)](#8-demo-2---levantar-el-stub-con-expectativas-fe--qaa)
+9. [Demo 3 - Expectativas externas (QAA)](#9-demo-3---expectativas-externas-qaa)
+10. [Demo 4 - Contract Testing (BE)](#10-demo-4---contract-testing-be)
+11. [Demo 5 - Repositorio central de contratos](#11-demo-5---repositorio-central-de-contratos)
+12. [Demo 6 - Que pasa cuando alguien rompe el contrato](#12-demo-6---que-pasa-cuando-alguien-rompe-el-contrato)
+13. [Integracion con Maven (BE)](#13-integracion-con-maven-be)
+14. [Comparacion con otras herramientas](#14-comparacion-con-otras-herramientas)
+15. [Resumen de beneficios](#15-resumen-de-beneficios)
 
 ---
 
@@ -83,6 +84,7 @@ specmatic_tl/
 ├── specmatic-git.yaml                           # Ejemplo: config apuntando a GitHub
 │
 └── contracts/                                   # Contratos OpenAPI (fuente de verdad)
+    ├── users_api.yaml                           # Contrato SIN examples (demo faker)
     ├── products_api.yaml                        # Contrato de Products API
     ├── products_api_examples/                   # Expectativas externas de Products
     │   ├── get-products/                        #   GET /products
@@ -253,11 +255,156 @@ npx specmatic --help
 
 ---
 
-## 7. Demo 1 - Levantar el Stub (FE / QAA)
+## 7. Demo 1 - Faker: stub sin expectativas
 
-> **Escenario:** El FE necesita un servidor que responda como la API real para desarrollar la UI.
+> **Escenario:** Queres ver como responde Specmatic cuando el contrato **no tiene examples ni expectativas**. Specmatic genera respuestas random pero **siempre validas** segun el schema. Esta es la forma mas rapida de arrancar: solo necesitas el contrato.
 
-### 7.1 Levantar stub de Products API (puerto 9000)
+### 7.1 Contrato sin examples
+
+En este repo tenemos `contracts/users_api.yaml`, un contrato minimo que **no tiene examples definidos** (ni inline ni externos). Solo define schemas.
+
+Fragmento clave del contrato:
+
+```yaml
+components:
+  schemas:
+    User:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - role
+        - active
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, editor, viewer]
+        active:
+          type: boolean
+```
+
+### 7.2 Levantar el stub
+
+```bash
+java -jar specmatic.jar stub contracts/users_api.yaml
+```
+
+No hay carpeta `users_api_examples/`, no hay inline examples. Solo el contrato.
+
+### 7.3 Probar el faker
+
+```bash
+# GET lista de usuarios - Specmatic genera un array con datos random
+curl http://localhost:9000/users
+```
+
+Respuesta generada automaticamente (ejemplo, los valores varian cada vez):
+
+```json
+[
+  {
+    "id": 382,
+    "name": "KBMLY",
+    "email": "XRQFP@j.com",
+    "role": "viewer",
+    "active": true
+  }
+]
+```
+
+```bash
+# GET usuario por ID - Specmatic genera un objeto random
+curl http://localhost:9000/users/42
+```
+
+```json
+{
+  "id": 819,
+  "name": "QZTMR",
+  "email": "YPWNL@m.com",
+  "role": "admin",
+  "active": false
+}
+```
+
+```bash
+# POST crear usuario - Specmatic valida el body y genera la respuesta
+curl -X POST http://localhost:9000/users \
+  -H "Content-Type: application/json" \
+  -d "{\"name\": \"Juan Perez\", \"email\": \"juan@example.com\", \"role\": \"editor\"}"
+```
+
+```json
+{
+  "id": 547,
+  "name": "HMVKW",
+  "email": "DCFLS@b.com",
+  "role": "editor",
+  "active": true
+}
+```
+
+### 7.4 Que garantiza el faker
+
+Aunque los valores son random, **siempre cumplen el contrato**:
+
+| Propiedad | Schema dice | Faker respeta |
+|---|---|---|
+| `id` | `type: integer` | Siempre devuelve un entero |
+| `name` | `type: string` | Siempre devuelve un string |
+| `email` | `format: email` | Siempre devuelve formato email valido |
+| `role` | `enum: [admin, editor, viewer]` | Siempre devuelve uno de los 3 valores |
+| `active` | `type: boolean` | Siempre devuelve true o false |
+| campos required | `required: [id, name, email, role, active]` | Nunca falta un campo requerido |
+
+### 7.5 Que pasa si el request es invalido
+
+El faker tambien **valida el request** contra el contrato:
+
+```bash
+# Body sin campo obligatorio "email" → Specmatic rechaza
+curl -X POST http://localhost:9000/users \
+  -H "Content-Type: application/json" \
+  -d "{\"name\": \"Juan\", \"role\": \"admin\"}"
+```
+
+Specmatic devuelve **HTTP 400** con el detalle de por que el request no es valido.
+
+```bash
+# Enum invalido → Specmatic rechaza
+curl -X POST http://localhost:9000/users \
+  -H "Content-Type: application/json" \
+  -d "{\"name\": \"Juan\", \"email\": \"j@x.com\", \"role\": \"superadmin\"}"
+```
+
+Specmatic devuelve **HTTP 400** porque `"superadmin"` no esta en el enum.
+
+### 7.6 Faker vs Expectativas: cuando usar cada uno
+
+| | Faker (sin examples) | Expectativas (con examples) |
+|---|---|---|
+| **Respuestas** | Random pero schema-valid | Exactas, predecibles |
+| **Ideal para** | Prototipar rapido, explorar la API | Tests automatizados, desarrollo FE |
+| **FE lo usa para** | Ver la estructura de la respuesta | Renderizar datos concretos en la UI |
+| **QAA lo usa para** | Validar que el contrato tiene sentido | Cubrir escenarios especificos |
+
+> **Flujo tipico:** Primero el faker te deja arrancar rapido con el contrato solo. Despues, a medida que FE y QAA necesitan respuestas predecibles, agregan expectativas archivo por archivo. Eso es exactamente lo que vemos en la siguiente demo.
+
+---
+
+## 8. Demo 2 - Levantar el Stub con expectativas (FE / QAA)
+
+> **Escenario:** El FE necesita un servidor que responda con **datos predecibles** para desarrollar la UI. A diferencia del faker, aca usamos expectativas (examples) que definen respuestas exactas.
+
+### 8.1 Levantar stub de Products API (puerto 9000)
 
 **Con JAR (recomendado):**
 
@@ -283,9 +430,9 @@ docker run -p 9000:9000 -v "$(pwd):/usr/src/app" specmatic/specmatic stub --conf
 npx specmatic stub --config specmatic-stub-products.yaml --port 9000
 ```
 
-> Por defecto el stub levanta en `http://localhost:9000`. Specmatic genera respuestas validas segun el contrato.
+> Por defecto el stub levanta en `http://localhost:9000`. A diferencia del faker (Demo 1), aca Specmatic carga las expectativas y devuelve respuestas exactas cuando matchean.
 
-### 7.2 Probar que funciona
+### 8.2 Probar que funciona
 
 Abrir otra terminal y ejecutar:
 
@@ -308,7 +455,9 @@ curl http://localhost:9000/products/9999
 curl "http://localhost:9000/products?category=clothing"
 ```
 
-### 7.3 Que esta pasando internamente
+> **Notar la diferencia con Demo 1:** Aca las respuestas son siempre las mismas (predecibles), no random. Eso es clave para que FE pueda renderizar datos concretos y QAA pueda escribir assertions estables.
+
+### 8.3 Que esta pasando internamente
 
 1. Specmatic lee el contrato `products_api.yaml`
 2. Carga los **inline examples** definidos en el YAML
@@ -316,9 +465,9 @@ curl "http://localhost:9000/products?category=clothing"
 4. Levanta un servidor HTTP en el puerto 9000
 5. Cada request entrante se valida contra el contrato
 6. Si matchea un ejemplo, devuelve esa respuesta exacta
-7. Si no matchea un ejemplo pero es valido segun el schema, genera una respuesta automatica
+7. Si no matchea un ejemplo pero es valido segun el schema, genera una respuesta automatica (faker)
 
-### 7.4 Levantar ambos stubs en paralelo
+### 8.4 Levantar ambos stubs en paralelo
 
 ```bash
 # Terminal 1: Products API en puerto 9000
@@ -328,7 +477,7 @@ java -jar specmatic.jar stub --config specmatic-stub-products.yaml --port 9000
 java -jar specmatic.jar stub --config specmatic-stub-orders.yaml --port 9001
 ```
 
-### 7.5 Stub directo de un contrato (sin config)
+### 8.5 Stub directo de un contrato (sin config)
 
 Si solo queres levantar un stub rapido de un contrato sin archivo de configuracion:
 
@@ -343,7 +492,7 @@ java -jar specmatic.jar stub contracts/products_api.yaml --port 8090
 java -jar specmatic.jar stub contracts/products_api.yaml --debug
 ```
 
-### 7.6 Health check
+### 8.6 Health check
 
 ```bash
 curl http://localhost:9000/actuator/health
@@ -352,11 +501,11 @@ curl http://localhost:9000/actuator/health
 
 ---
 
-## 8. Demo 2 - Expectativas externas (QAA)
+## 9. Demo 3 - Expectativas externas (QAA)
 
 > **Escenario:** QAA necesita agregar escenarios de prueba adicionales sin modificar el contrato.
 
-### 8.1 Anatomia de una expectativa
+### 9.1 Anatomia de una expectativa
 
 Archivo: `contracts/products_api_examples/get-products-id/404-no-existe.json`
 
@@ -386,7 +535,7 @@ Notar como el nombre del archivo (`404-no-existe.json`) dentro de la carpeta del
 - Si la expectativa viola el contrato, Specmatic la rechaza al arrancar (fail fast)
 - Las expectativas no pueden inventar campos que no existen en el schema
 
-### 8.2 Agregar una nueva expectativa en vivo
+### 9.2 Agregar una nueva expectativa en vivo
 
 Con el stub corriendo, crear un archivo `contracts/products_api_examples/post-products/201-categoria-food.json`:
 
@@ -431,7 +580,7 @@ curl -X POST http://localhost:9000/products \
   -d "{\"name\": \"Organic Honey\", \"price\": 12.99, \"category\": \"food\", \"stock\": 100}"
 ```
 
-### 8.3 Expectativas dinamicas via API
+### 9.3 Expectativas dinamicas via API
 
 QAA tambien puede setear expectativas programaticamente:
 
@@ -441,7 +590,7 @@ curl -X POST http://localhost:9000/_specmatic/expectations \
   -d "{\"http-request\": {\"method\": \"GET\", \"path\": \"/products/42\"}, \"http-response\": {\"status\": 200, \"body\": {\"id\": 42, \"name\": \"Test Product\", \"price\": 9.99, \"category\": \"electronics\", \"stock\": 1}}}"
 ```
 
-### 8.4 Modo estricto
+### 9.4 Modo estricto
 
 Para que el stub SOLO responda con expectativas definidas (sin generar respuestas automaticas):
 
@@ -453,11 +602,11 @@ En modo estricto, si llega un request que no matchea ninguna expectativa, Specma
 
 ---
 
-## 9. Demo 3 - Contract Testing (BE)
+## 10. Demo 4 - Contract Testing (BE)
 
 > **Escenario:** BE esta desarrollando la API y quiere validar que cumple con el contrato.
 
-### 9.1 Ejecutar contract tests contra una API real
+### 10.1 Ejecutar contract tests contra una API real
 
 Suponiendo que el BE tiene su API corriendo en `http://localhost:8080`:
 
@@ -485,7 +634,7 @@ docker run -v "%cd%:/usr/src/app" --network host specmatic/specmatic test --conf
 npx specmatic test --config specmatic-test.yaml --testBaseURL http://localhost:8080
 ```
 
-### 9.2 Que testea Specmatic automaticamente
+### 10.2 Que testea Specmatic automaticamente
 
 A partir del contrato, Specmatic genera tests para:
 
@@ -498,7 +647,7 @@ A partir del contrato, Specmatic genera tests para:
 | Valores de enum | `category` es uno de: electronics, clothing, food |
 | Content-Type headers | Response es application/json |
 
-### 9.3 Generar reporte JUnit
+### 10.3 Generar reporte JUnit
 
 ```bash
 java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --junitReportDir ./build/reports
@@ -508,7 +657,7 @@ El reporte se genera en `./build/reports/` y puede integrarse en CI/CD (Jenkins,
 
 El reporte HTML se genera en `./build/reports/specmatic/html/index.html`.
 
-### 9.4 Tests generativos (boundary conditions)
+### 10.4 Tests generativos (boundary conditions)
 
 Specmatic puede generar automaticamente tests de boundary conditions (valores limite, nulos, strings vacios, etc.):
 
@@ -522,7 +671,7 @@ set ONLY_POSITIVE=true
 java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080
 ```
 
-### 9.5 Filtrar tests especificos
+### 10.5 Filtrar tests especificos
 
 ```bash
 # Solo tests de POST
@@ -546,11 +695,11 @@ java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://l
 
 ---
 
-## 10. Demo 4 - Repositorio central de contratos
+## 11. Demo 5 - Repositorio central de contratos
 
 > **Escenario:** Todos los equipos referencian los contratos desde un unico repositorio en GitHub.
 
-### 10.1 Estructura del repo central
+### 11.1 Estructura del repo central
 
 ```
 github.com/tu-org/specmatic-contracts/
@@ -570,7 +719,7 @@ github.com/tu-org/specmatic-contracts/
 └── README.md
 ```
 
-### 10.2 Configuracion apuntando a GitHub
+### 11.2 Configuracion apuntando a GitHub
 
 Archivo `specmatic-git.yaml` (incluido en este repo como referencia):
 
@@ -592,7 +741,7 @@ dependencies:
                     path: contracts/products_api.yaml
 ```
 
-### 10.3 Levantar stub desde el repo central
+### 11.3 Levantar stub desde el repo central
 
 ```bash
 # Con JAR
@@ -604,7 +753,7 @@ docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic stub --config
 
 Specmatic clona el repo, descarga los contratos y las expectativas, y levanta el stub. **Todos los equipos usan la misma fuente de verdad.**
 
-### 10.4 Flujo con branches
+### 11.4 Flujo con branches
 
 Con la opcion `--match-branch`, Specmatic busca una branch con el mismo nombre que la branch actual del repo donde se ejecuta. Esto permite que el equipo trabaje en features branches sin afectar main:
 
@@ -615,11 +764,11 @@ java -jar specmatic.jar stub --config specmatic-git.yaml --match-branch
 
 ---
 
-## 11. Demo 5 - Que pasa cuando alguien rompe el contrato
+## 12. Demo 6 - Que pasa cuando alguien rompe el contrato
 
 > **Escenario:** Alguien modifica el contrato y queremos detectarlo temprano.
 
-### 11.1 Simulacion: BE devuelve un campo con tipo incorrecto
+### 12.1 Simulacion: BE devuelve un campo con tipo incorrecto
 
 Si el BE devuelve `price` como string en lugar de number:
 
@@ -641,7 +790,7 @@ Test Failed: GET /products/1
   Actual: price (string) "mil doscientos"
 ```
 
-### 11.2 Simulacion: QAA agrega expectativa invalida
+### 12.2 Simulacion: QAA agrega expectativa invalida
 
 Si QAA crea una expectativa con un campo que no existe en el schema:
 
@@ -666,7 +815,7 @@ Si QAA crea una expectativa con un campo que no existe en el schema:
 Error: Key "discount" in the response body is not defined in the schema
 ```
 
-### 11.3 En el CI/CD
+### 12.3 En el CI/CD
 
 ```yaml
 # Ejemplo GitHub Actions
@@ -699,11 +848,11 @@ jobs:
 
 ---
 
-## 12. Integracion con Maven (BE)
+## 13. Integracion con Maven (BE)
 
 > **Escenario:** El equipo de BE quiere que los contract tests se ejecuten automaticamente con `mvn test`, igual que cualquier otro test unitario o de integracion.
 
-### 12.1 Dependencias Maven
+### 13.1 Dependencias Maven
 
 Agregar al `pom.xml` del proyecto BE:
 
@@ -729,7 +878,7 @@ Agregar al `pom.xml` del proyecto BE:
 
 > **Nota:** Verificar la ultima version disponible en [Maven Central](https://central.sonatype.com/artifact/io.specmatic/junit5-support). El groupId anterior `in.specmatic` esta deprecado, usar siempre `io.specmatic`.
 
-### 12.2 Clase de Contract Test (zero codigo)
+### 13.2 Clase de Contract Test (zero codigo)
 
 Crear la clase en `src/test/java/`:
 
@@ -758,7 +907,7 @@ class ContractTests : SpecmaticContractTest
 
 Eso es todo. **Zero glue code.** Specmatic se encarga de generar y ejecutar los tests basandose en la configuracion.
 
-### 12.3 Configuracion specmatic.yaml (en la raiz del proyecto BE)
+### 13.3 Configuracion specmatic.yaml (en la raiz del proyecto BE)
 
 El archivo `specmatic.yaml` debe estar en el mismo directorio que el `pom.xml`:
 
@@ -819,7 +968,7 @@ components:
         branch: main
 ```
 
-### 12.4 Ejecutar con Maven
+### 13.4 Ejecutar con Maven
 
 ```bash
 # Ejecutar contract tests (la app BE debe estar corriendo)
@@ -844,7 +993,7 @@ Los reportes se generan en:
 - JUnit XML: `target/surefire-reports/`
 - HTML (Specmatic): `build/reports/specmatic/html/index.html`
 
-### 12.5 Configurar Maven Surefire (opcional)
+### 13.5 Configurar Maven Surefire (opcional)
 
 Si necesitas configurar el plugin de Surefire para los contract tests:
 
@@ -874,7 +1023,7 @@ Si necesitas configurar el plugin de Surefire para los contract tests:
 </build>
 ```
 
-### 12.6 Perfil Maven para contract tests separados
+### 13.6 Perfil Maven para contract tests separados
 
 Si queres separar los contract tests de los tests unitarios con un perfil:
 
@@ -908,7 +1057,7 @@ mvn test -Pcontract-tests
 mvn test -Dtest='!ContractTests'
 ```
 
-### 12.7 Ejemplo completo de pom.xml minimo
+### 13.7 Ejemplo completo de pom.xml minimo
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -959,7 +1108,7 @@ mvn test -Dtest='!ContractTests'
 </project>
 ```
 
-### 12.8 Gradle equivalente
+### 13.8 Gradle equivalente
 
 Para equipos que usan Gradle en lugar de Maven:
 
@@ -983,7 +1132,7 @@ tasks.test {
 ./gradlew test --tests '*ContractTests'
 ```
 
-### 12.9 Workflow completo por rol con Maven
+### 13.9 Workflow completo por rol con Maven
 
 ```
 BE Developer:
@@ -997,11 +1146,11 @@ BE Developer:
 
 ---
 
-## 13. Comparacion con otras herramientas
+## 14. Comparacion con otras herramientas
 
 > **Contexto para la capacitacion:** Es comun que otros lideres pregunten "por que no usar WireMock?" o "Pact no hace lo mismo?". Esta seccion responde esas preguntas con datos concretos.
 
-### 13.1 Las 4 herramientas mas comunes
+### 14.1 Las 4 herramientas mas comunes
 
 | Herramienta | Enfoque | En pocas palabras |
 |---|---|---|
@@ -1010,7 +1159,7 @@ BE Developer:
 | **Pact** | Consumer-Driven Contract Testing (CDCT) | El consumer define el contrato en codigo. |
 | **Spring Cloud Contract** | Provider-Driven + CDC | Contratos en Groovy DSL, genera stubs y tests. |
 
-### 13.2 Tabla comparativa detallada
+### 14.2 Tabla comparativa detallada
 
 | Dimension | Specmatic | WireMock | Pact | Spring Cloud Contract |
 |---|---|---|---|---|
@@ -1028,7 +1177,7 @@ BE Developer:
 | **Curva de aprendizaje** | Baja (solo conocer tu spec) | Baja para mocking | Alta (DSL + Broker + states) | Media (requiere Spring) |
 | **Licencia** | MIT | Apache 2.0 | MIT | Apache 2.0 |
 
-### 13.3 Specmatic vs WireMock
+### 14.3 Specmatic vs WireMock
 
 WireMock es la herramienta mas conocida para mocking de APIs. La diferencia fundamental:
 
@@ -1053,7 +1202,7 @@ Con Specmatic ese escenario es imposible porque el contrato es la unica fuente d
 
 > **Cuando SI usar WireMock:** Si ya tenes mocks de WireMock y solo necesitas mocking sin contract testing, WireMock cumple. Pero si necesitas **garantizar que los mocks representan la API real**, necesitas Specmatic.
 
-### 13.4 Specmatic vs Pact
+### 14.4 Specmatic vs Pact
 
 Pact es la herramienta mas conocida de contract testing. La diferencia clave es **quien define el contrato**:
 
@@ -1086,7 +1235,7 @@ Con Specmatic:
 
 > **Cuando SI usar Pact:** Si tu equipo no hace API First Development, no tiene specs OpenAPI, y el consumer necesita conducir el contrato. Pero si ya tenes specs OpenAPI (o queres adoptarlas), Specmatic es mas directo.
 
-### 13.5 Specmatic vs Spring Cloud Contract
+### 14.5 Specmatic vs Spring Cloud Contract
 
 | | Spring Cloud Contract | Specmatic |
 |---|---|---|
@@ -1098,7 +1247,7 @@ Con Specmatic:
 
 > **Cuando SI usar Spring Cloud Contract:** Si todo tu stack es Spring Boot y ya lo usas. Pero si tenes equipos multi-lenguaje o queres evitar el acoplamiento al ecosistema Spring, Specmatic es mejor opcion.
 
-### 13.6 Resumen visual
+### 14.6 Resumen visual
 
 ```
                     ¿Necesitas contract testing?
@@ -1123,7 +1272,7 @@ Con Specmatic:
 
 ---
 
-## 14. Resumen de beneficios
+## 15. Resumen de beneficios
 
 ### Para el equipo
 

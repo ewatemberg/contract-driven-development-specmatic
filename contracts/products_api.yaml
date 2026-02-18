@@ -31,19 +31,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Product"
-              examples:
-                LIST_ALL_PRODUCTS:
-                  value:
-                    - id: 1
-                      name: "Laptop Pro 15"
-                      price: 1299.99
-                      category: "electronics"
-                      stock: 25
-                    - id: 2
-                      name: "Wireless Mouse"
-                      price: 29.99
-                      category: "electronics"
-                      stock: 150
     post:
       summary: Crear un producto
       operationId: createProduct
