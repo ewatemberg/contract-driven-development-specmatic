@@ -6,7 +6,8 @@
       "WebFetch(domain:docs.pact.io)",
       "WebFetch(domain:specmatic.io)",
       "WebFetch(domain:medium.com)",
-      "WebFetch(domain:central.sonatype.com)"
+      "WebFetch(domain:central.sonatype.com)",
+      "WebFetch(domain:www.npmjs.com)"
     ]
   }
 }

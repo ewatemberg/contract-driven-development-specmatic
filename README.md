@@ -15,12 +15,13 @@ Capacitacion practica sobre como usar **Specmatic** para implementar **Contract 
 7. [Demo 1 - Faker: stub sin expectativas](#7-demo-1---faker-stub-sin-expectativas)
 8. [Demo 2 - Levantar el Stub con expectativas (FE / QAA)](#8-demo-2---levantar-el-stub-con-expectativas-fe--qaa)
 9. [Demo 3 - Expectativas externas (QAA)](#9-demo-3---expectativas-externas-qaa)
-10. [Demo 4 - Contract Testing (BE)](#10-demo-4---contract-testing-be)
-11. [Demo 5 - Repositorio central de contratos](#11-demo-5---repositorio-central-de-contratos)
-12. [Demo 6 - Que pasa cuando alguien rompe el contrato](#12-demo-6---que-pasa-cuando-alguien-rompe-el-contrato)
-13. [Integracion con Maven (BE)](#13-integracion-con-maven-be)
-14. [Comparacion con otras herramientas](#14-comparacion-con-otras-herramientas)
-15. [Resumen de beneficios](#15-resumen-de-beneficios)
+10. [Demo 4 - Proxy: generar expectativas desde trafico real](#10-demo-4---proxy-generar-expectativas-desde-trafico-real)
+11. [Demo 5 - Contract Testing (BE)](#11-demo-5---contract-testing-be)
+12. [Demo 6 - Repositorio central de contratos](#12-demo-6---repositorio-central-de-contratos)
+13. [Demo 7 - Que pasa cuando alguien rompe el contrato](#13-demo-7---que-pasa-cuando-alguien-rompe-el-contrato)
+14. [Integracion con Maven (BE)](#14-integracion-con-maven-be)
+15. [Comparacion con otras herramientas](#15-comparacion-con-otras-herramientas)
+16. [Resumen de beneficios](#16-resumen-de-beneficios)
 
 ---
 
@@ -602,11 +603,209 @@ En modo estricto, si llega un request que no matchea ninguna expectativa, Specma
 
 ---
 
-## 10. Demo 4 - Contract Testing (BE)
+## 10. Demo 4 - Proxy: generar expectativas desde trafico real
+
+> **Escenario:** Ya tenes una API corriendo (propia o de terceros) y queres generar el contrato OpenAPI y las expectativas **automaticamente** a partir de trafico real, en lugar de escribirlas a mano.
+
+### 10.1 Como funciona el proxy
+
+Specmatic levanta un **reverse proxy** entre tu cliente y la API real:
+
+```
+Cliente (curl, Postman, tu app)
+        │
+        ▼
+  Specmatic Proxy (localhost:9000)
+        │
+        ▼
+  API real (--target URL)
+```
+
+Cada request que pasa por el proxy se **reenvía** a la API real y la respuesta se devuelve al cliente sin modificaciones. Mientras tanto, Specmatic **graba** cada par request/response.
+
+### 10.2 Levantar el proxy
+
+**Importante:** La carpeta de salida **no debe existir** antes de iniciar el proxy.
+
+**Con JAR (recomendado):**
+
+```bash
+# Proxy contra una API publica de ejemplo
+java -jar specmatic.jar proxy --target https://dummyjson.com ./proxy_output
+
+# Proxy contra tu API local
+java -jar specmatic.jar proxy --target http://localhost:8080 ./proxy_output
+```
+
+**Con Docker (Windows):**
+
+```bash
+docker run -p 9000:9000 -v "%cd%/proxy_output:/proxy_output" specmatic/specmatic proxy --target https://dummyjson.com /proxy_output
+```
+
+**Con Docker (Linux/macOS):**
+
+```bash
+docker run -p 9000:9000 -v "$(pwd)/proxy_output:/proxy_output" specmatic/specmatic proxy --target https://dummyjson.com /proxy_output
+```
+
+**Con npx:**
+
+```bash
+npx specmatic proxy --target https://dummyjson.com ./proxy_output
+```
+
+El proxy levanta en `http://localhost:9000` por defecto.
+
+### 10.3 Enviar trafico a traves del proxy
+
+En lugar de hacer requests directamente a la API, los enviamos al proxy:
+
+```bash
+# Verificar que el proxy esta corriendo
+curl http://localhost:9000/actuator/health
+
+# GET - Listar productos
+curl http://localhost:9000/products
+
+# GET - Producto por ID
+curl http://localhost:9000/products/1
+
+# GET - Buscar productos
+curl "http://localhost:9000/products/search?q=phone"
+
+# POST - Crear producto
+curl -X POST http://localhost:9000/products/add \
+  -H "Content-Type: application/json" \
+  -d "{\"title\": \"New Product\", \"price\": 29.99}"
+```
+
+Cada uno de estos requests viaja al proxy → API real → proxy graba → devuelve la respuesta al cliente.
+
+### 10.4 Generar la spec y las expectativas
+
+Hay dos formas de disparar la generacion:
+
+**Opcion A: Sin detener el proxy (recomendado para seguir grabando):**
+
+```bash
+curl -X POST http://localhost:9000/_specmatic/proxy/dump
+```
+
+Esto genera los archivos y el proxy sigue corriendo para capturar mas trafico.
+
+**Opcion B: Detener el proxy:**
+
+Presionar `Ctrl + C` en la terminal donde corre el proxy. Al detenerse, genera todos los archivos.
+
+### 10.5 Que se genera
+
+```
+proxy_output/
+  proxy_generated.yaml                 # Contrato OpenAPI 3.0.1 generado
+  proxy_generated_examples/            # Expectativas generadas
+    products_GET_200_1.json
+    products_1_GET_200_2.json
+    products_search_GET_200_3.json
+    products_add_POST_201_4.json
+```
+
+**Ejemplo de expectativa generada** (`products_1_GET_200_2.json`):
+
+```json
+{
+  "http-request": {
+    "path": "/products/1",
+    "method": "GET"
+  },
+  "http-response": {
+    "status": 200,
+    "body": {
+      "id": 1,
+      "title": "Essence Mascara Lash Princess",
+      "price": 9.99,
+      "category": "beauty"
+    },
+    "status-text": "OK"
+  }
+}
+```
+
+El archivo `proxy_generated.yaml` es un **contrato OpenAPI completo** con schemas inferidos del trafico real. A mas trafico pase por el proxy, mas precisa sera la especificacion generada.
+
+### 10.6 Usar las expectativas generadas como stub
+
+Una vez generados, podes levantar un stub directamente con los archivos del proxy:
+
+```bash
+java -jar specmatic.jar stub proxy_output/proxy_generated.yaml
+```
+
+Ahora tenes un stub que responde **exactamente** como la API real respondio durante la grabacion.
+
+### 10.7 Adoptar las expectativas en tu proyecto
+
+Para integrar las expectativas generadas en tu flujo de trabajo con la convencion del equipo:
+
+```bash
+# 1. Renombrar y mover al formato de tu proyecto
+#    proxy_generated_examples/products_1_GET_200_2.json
+#    → contracts/products_api_examples/get-products-id/200-ok.json
+
+# 2. Validar que las expectativas cumplen tu contrato existente
+java -jar specmatic.jar examples validate --spec-file contracts/products_api.yaml
+
+# 3. Levantar el stub con tus expectativas adoptadas
+java -jar specmatic.jar stub --config specmatic-stub-products.yaml
+```
+
+### 10.8 Workflow completo: de API real a stub con expectativas
+
+```
+Paso 1: Apuntar proxy a la API real
+  java -jar specmatic.jar proxy --target http://api-real:8080 ./proxy_output
+
+Paso 2: Enviar los requests que te interesan (curl, Postman, tu app)
+  curl http://localhost:9000/products
+  curl http://localhost:9000/products/1
+  curl -X POST http://localhost:9000/products ...
+
+Paso 3: Generar spec + expectativas
+  curl -X POST http://localhost:9000/_specmatic/proxy/dump
+
+Paso 4: Renombrar archivos a tu convencion de equipo
+  products_1_GET_200_2.json → get-products-id/200-ok.json
+
+Paso 5: Validar contra el contrato
+  java -jar specmatic.jar examples validate --spec-file contracts/products_api.yaml
+
+Paso 6: Usar como stub
+  java -jar specmatic.jar stub --config specmatic-stub-products.yaml
+```
+
+> **Tip para la capacitacion:** Este workflow es ideal para equipos que ya tienen una API en produccion y quieren migrar a contract testing. El proxy les permite **capturar el comportamiento real** y convertirlo en expectativas sin escribir nada a mano.
+
+### 10.9 Validar expectativas existentes
+
+Independientemente del proxy, podes validar en cualquier momento que tus expectativas siguen cumpliendo el contrato:
+
+```bash
+# Validar expectativas de un contrato especifico
+java -jar specmatic.jar examples validate --spec-file contracts/products_api.yaml
+
+# Validar todos los contratos de un directorio
+java -jar specmatic.jar examples validate --specs-dir ./contracts
+```
+
+Si alguna expectativa viola el contrato, Specmatic reporta el error con detalle. Esto es util en CI/CD para detectar drift.
+
+---
+
+## 11. Demo 5 - Contract Testing (BE)
 
 > **Escenario:** BE esta desarrollando la API y quiere validar que cumple con el contrato.
 
-### 10.1 Ejecutar contract tests contra una API real
+### 11.1 Ejecutar contract tests contra una API real
 
 Suponiendo que el BE tiene su API corriendo en `http://localhost:8080`:
 
@@ -634,7 +833,7 @@ docker run -v "%cd%:/usr/src/app" --network host specmatic/specmatic test --conf
 npx specmatic test --config specmatic-test.yaml --testBaseURL http://localhost:8080
 ```
 
-### 10.2 Que testea Specmatic automaticamente
+### 11.2 Que testea Specmatic automaticamente
 
 A partir del contrato, Specmatic genera tests para:
 
@@ -647,7 +846,7 @@ A partir del contrato, Specmatic genera tests para:
 | Valores de enum | `category` es uno de: electronics, clothing, food |
 | Content-Type headers | Response es application/json |
 
-### 10.3 Generar reporte JUnit
+### 11.3 Generar reporte JUnit
 
 ```bash
 java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080 --junitReportDir ./build/reports
@@ -657,7 +856,7 @@ El reporte se genera en `./build/reports/` y puede integrarse en CI/CD (Jenkins,
 
 El reporte HTML se genera en `./build/reports/specmatic/html/index.html`.
 
-### 10.4 Tests generativos (boundary conditions)
+### 11.4 Tests generativos (boundary conditions)
 
 Specmatic puede generar automaticamente tests de boundary conditions (valores limite, nulos, strings vacios, etc.):
 
@@ -671,7 +870,7 @@ set ONLY_POSITIVE=true
 java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080
 ```
 
-### 10.5 Filtrar tests especificos
+### 11.5 Filtrar tests especificos
 
 ```bash
 # Solo tests de POST
@@ -695,11 +894,11 @@ java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://l
 
 ---
 
-## 11. Demo 5 - Repositorio central de contratos
+## 12. Demo 6 - Repositorio central de contratos
 
 > **Escenario:** Todos los equipos referencian los contratos desde un unico repositorio en GitHub.
 
-### 11.1 Estructura del repo central
+### 12.1 Estructura del repo central
 
 ```
 github.com/tu-org/specmatic-contracts/
@@ -719,7 +918,7 @@ github.com/tu-org/specmatic-contracts/
 └── README.md
 ```
 
-### 11.2 Configuracion apuntando a GitHub
+### 12.2 Configuracion apuntando a GitHub
 
 Archivo `specmatic-git.yaml` (incluido en este repo como referencia):
 
@@ -741,7 +940,7 @@ dependencies:
                     path: contracts/products_api.yaml
 ```
 
-### 11.3 Levantar stub desde el repo central
+### 12.3 Levantar stub desde el repo central
 
 ```bash
 # Con JAR
@@ -753,7 +952,7 @@ docker run -p 9000:9000 -v "%cd%:/usr/src/app" specmatic/specmatic stub --config
 
 Specmatic clona el repo, descarga los contratos y las expectativas, y levanta el stub. **Todos los equipos usan la misma fuente de verdad.**
 
-### 11.4 Flujo con branches
+### 12.4 Flujo con branches
 
 Con la opcion `--match-branch`, Specmatic busca una branch con el mismo nombre que la branch actual del repo donde se ejecuta. Esto permite que el equipo trabaje en features branches sin afectar main:
 
@@ -764,11 +963,11 @@ java -jar specmatic.jar stub --config specmatic-git.yaml --match-branch
 
 ---
 
-## 12. Demo 6 - Que pasa cuando alguien rompe el contrato
+## 13. Demo 7 - Que pasa cuando alguien rompe el contrato
 
 > **Escenario:** Alguien modifica el contrato y queremos detectarlo temprano.
 
-### 12.1 Simulacion: BE devuelve un campo con tipo incorrecto
+### 13.1 Simulacion: BE devuelve un campo con tipo incorrecto
 
 Si el BE devuelve `price` como string en lugar de number:
 
@@ -790,7 +989,7 @@ Test Failed: GET /products/1
   Actual: price (string) "mil doscientos"
 ```
 
-### 12.2 Simulacion: QAA agrega expectativa invalida
+### 13.2 Simulacion: QAA agrega expectativa invalida
 
 Si QAA crea una expectativa con un campo que no existe en el schema:
 
@@ -815,7 +1014,7 @@ Si QAA crea una expectativa con un campo que no existe en el schema:
 Error: Key "discount" in the response body is not defined in the schema
 ```
 
-### 12.3 En el CI/CD
+### 13.3 En el CI/CD
 
 ```yaml
 # Ejemplo GitHub Actions
@@ -848,11 +1047,11 @@ jobs:
 
 ---
 
-## 13. Integracion con Maven (BE)
+## 14. Integracion con Maven (BE)
 
 > **Escenario:** El equipo de BE quiere que los contract tests se ejecuten automaticamente con `mvn test`, igual que cualquier otro test unitario o de integracion.
 
-### 13.1 Dependencias Maven
+### 14.1 Dependencias Maven
 
 Agregar al `pom.xml` del proyecto BE:
 
@@ -878,7 +1077,7 @@ Agregar al `pom.xml` del proyecto BE:
 
 > **Nota:** Verificar la ultima version disponible en [Maven Central](https://central.sonatype.com/artifact/io.specmatic/junit5-support). El groupId anterior `in.specmatic` esta deprecado, usar siempre `io.specmatic`.
 
-### 13.2 Clase de Contract Test (zero codigo)
+### 14.2 Clase de Contract Test (zero codigo)
 
 Crear la clase en `src/test/java/`:
 
@@ -907,7 +1106,7 @@ class ContractTests : SpecmaticContractTest
 
 Eso es todo. **Zero glue code.** Specmatic se encarga de generar y ejecutar los tests basandose en la configuracion.
 
-### 13.3 Configuracion specmatic.yaml (en la raiz del proyecto BE)
+### 14.3 Configuracion specmatic.yaml (en la raiz del proyecto BE)
 
 El archivo `specmatic.yaml` debe estar en el mismo directorio que el `pom.xml`:
 
@@ -968,7 +1167,7 @@ components:
         branch: main
 ```
 
-### 13.4 Ejecutar con Maven
+### 14.4 Ejecutar con Maven
 
 ```bash
 # Ejecutar contract tests (la app BE debe estar corriendo)
@@ -993,7 +1192,7 @@ Los reportes se generan en:
 - JUnit XML: `target/surefire-reports/`
 - HTML (Specmatic): `build/reports/specmatic/html/index.html`
 
-### 13.5 Configurar Maven Surefire (opcional)
+### 14.5 Configurar Maven Surefire (opcional)
 
 Si necesitas configurar el plugin de Surefire para los contract tests:
 
@@ -1023,7 +1222,7 @@ Si necesitas configurar el plugin de Surefire para los contract tests:
 </build>
 ```
 
-### 13.6 Perfil Maven para contract tests separados
+### 14.6 Perfil Maven para contract tests separados
 
 Si queres separar los contract tests de los tests unitarios con un perfil:
 
@@ -1057,7 +1256,7 @@ mvn test -Pcontract-tests
 mvn test -Dtest='!ContractTests'
 ```
 
-### 13.7 Ejemplo completo de pom.xml minimo
+### 14.7 Ejemplo completo de pom.xml minimo
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -1108,7 +1307,7 @@ mvn test -Dtest='!ContractTests'
 </project>
 ```
 
-### 13.8 Gradle equivalente
+### 14.8 Gradle equivalente
 
 Para equipos que usan Gradle en lugar de Maven:
 
@@ -1132,7 +1331,7 @@ tasks.test {
 ./gradlew test --tests '*ContractTests'
 ```
 
-### 13.9 Workflow completo por rol con Maven
+### 14.9 Workflow completo por rol con Maven
 
 ```
 BE Developer:
@@ -1146,11 +1345,11 @@ BE Developer:
 
 ---
 
-## 14. Comparacion con otras herramientas
+## 15. Comparacion con otras herramientas
 
 > **Contexto para la capacitacion:** Es comun que otros lideres pregunten "por que no usar WireMock?" o "Pact no hace lo mismo?". Esta seccion responde esas preguntas con datos concretos.
 
-### 14.1 Las 4 herramientas mas comunes
+### 15.1 Las 4 herramientas mas comunes
 
 | Herramienta | Enfoque | En pocas palabras |
 |---|---|---|
@@ -1159,7 +1358,7 @@ BE Developer:
 | **Pact** | Consumer-Driven Contract Testing (CDCT) | El consumer define el contrato en codigo. |
 | **Spring Cloud Contract** | Provider-Driven + CDC | Contratos en Groovy DSL, genera stubs y tests. |
 
-### 14.2 Tabla comparativa detallada
+### 15.2 Tabla comparativa detallada
 
 | Dimension | Specmatic | WireMock | Pact | Spring Cloud Contract |
 |---|---|---|---|---|
@@ -1177,7 +1376,7 @@ BE Developer:
 | **Curva de aprendizaje** | Baja (solo conocer tu spec) | Baja para mocking | Alta (DSL + Broker + states) | Media (requiere Spring) |
 | **Licencia** | MIT | Apache 2.0 | MIT | Apache 2.0 |
 
-### 14.3 Specmatic vs WireMock
+### 15.3 Specmatic vs WireMock
 
 WireMock es la herramienta mas conocida para mocking de APIs. La diferencia fundamental:
 
@@ -1202,7 +1401,7 @@ Con Specmatic ese escenario es imposible porque el contrato es la unica fuente d
 
 > **Cuando SI usar WireMock:** Si ya tenes mocks de WireMock y solo necesitas mocking sin contract testing, WireMock cumple. Pero si necesitas **garantizar que los mocks representan la API real**, necesitas Specmatic.
 
-### 14.4 Specmatic vs Pact
+### 15.4 Specmatic vs Pact
 
 Pact es la herramienta mas conocida de contract testing. La diferencia clave es **quien define el contrato**:
 
@@ -1235,7 +1434,7 @@ Con Specmatic:
 
 > **Cuando SI usar Pact:** Si tu equipo no hace API First Development, no tiene specs OpenAPI, y el consumer necesita conducir el contrato. Pero si ya tenes specs OpenAPI (o queres adoptarlas), Specmatic es mas directo.
 
-### 14.5 Specmatic vs Spring Cloud Contract
+### 15.5 Specmatic vs Spring Cloud Contract
 
 | | Spring Cloud Contract | Specmatic |
 |---|---|---|
@@ -1247,7 +1446,7 @@ Con Specmatic:
 
 > **Cuando SI usar Spring Cloud Contract:** Si todo tu stack es Spring Boot y ya lo usas. Pero si tenes equipos multi-lenguaje o queres evitar el acoplamiento al ecosistema Spring, Specmatic es mejor opcion.
 
-### 14.6 Resumen visual
+### 15.6 Resumen visual
 
 ```
                     ¿Necesitas contract testing?
@@ -1272,7 +1471,7 @@ Con Specmatic:
 
 ---
 
-## 15. Resumen de beneficios
+## 16. Resumen de beneficios
 
 ### Para el equipo
 
@@ -1340,6 +1539,27 @@ set SPECMATIC_GENERATIVE_TESTS=true
 java -jar specmatic.jar test --config specmatic-test.yaml --testBaseURL http://localhost:8080
 
 
+# === PROXY (generar expectativas desde trafico real) ===
+
+# Proxy contra API remota
+java -jar specmatic.jar proxy --target https://api.example.com ./proxy_output
+
+# Proxy contra API local
+java -jar specmatic.jar proxy --target http://localhost:8080 ./proxy_output
+
+# Generar spec + expectativas sin detener el proxy
+curl -X POST http://localhost:9000/_specmatic/proxy/dump
+
+# Validar expectativas contra un contrato
+java -jar specmatic.jar examples validate --spec-file contracts/products_api.yaml
+
+# Validar todos los contratos de un directorio
+java -jar specmatic.jar examples validate --specs-dir ./contracts
+
+# Levantar stub con los archivos generados por el proxy
+java -jar specmatic.jar stub proxy_output/proxy_generated.yaml
+
+
 # === DESDE GITHUB ===
 
 # Stub desde repo central
@@ -1383,6 +1603,8 @@ docker run -v "%cd%:/usr/src/app" --network host specmatic/specmatic test --conf
 - [CLI Quick Start](https://docs.specmatic.io/getting_started/cli_quick_start.html)
 - [Contract Testing](https://docs.specmatic.io/contract_driven_development/contract_testing.html)
 - [Service Virtualization](https://docs.specmatic.io/contract_driven_development/service_virtualization)
+- [Proxy - Generar specs desde trafico real](https://docs.specmatic.io/contract_driven_development/generating_api_specifications.html)
+- [External Examples](https://docs.specmatic.io/features/external_examples.html)
 - [GitHub de Specmatic](https://github.com/specmatic/specmatic)
 - [Maven Central - junit5-support](https://central.sonatype.com/artifact/io.specmatic/junit5-support)
 - [Specmatic vs WireMock (oficial)](https://specmatic.io/comparisons/comparison-specmatic-vs-wiremock/)
